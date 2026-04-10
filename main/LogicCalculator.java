@@ -1,4 +1,12 @@
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Scanner;
+import java.util.Set;
+import java.util.Stack;
+import java.util.TreeMap;
 
 public class LogicCalculator {
 
@@ -6,39 +14,59 @@ public class LogicCalculator {
         Scanner input = new Scanner(System.in);
 
         System.out.println("Enter a logical expression:");
-        System.out.println("supported operators: ");
+        System.out.println("Supported operators:");
         System.out.println("and");
         System.out.println("or");
         System.out.println("not");
         System.out.println("xor");
         System.out.println("xnor");
-        System.out.println("conditional: If A then B (A → B)");
-        System.out.println("biconditional: A if and only if B (A ↔ B)");
+        System.out.println("conditional: A conditional B (A -> B)");
+        System.out.println("biconditional: A biconditional B (A <-> B)");
         System.out.println("(): Parentheses");
-        System.out.println("true / false: boolean values");
+        System.out.println("Variables: p, q, r, ...");
+        System.out.println("Example: (p and q) conditional not r");
 
-        String expression = input.nextLine().toLowerCase();
+        String expression = input.nextLine().toLowerCase().trim();
 
         try {
-            boolean result = evaluate(expression);
-            System.out.println("Result = " + result);
+            printTruthTable(expression);
         } catch (Exception e) {
             System.out.println("Invalid expression: " + e.getMessage());
         }
     }
 
-    public static boolean evaluate(String expr) {
+    public static void printTruthTable(String expr) {
         List<String> tokens = tokenize(expr);
+        List<String> variables = extractVariables(tokens);
+
+        if (variables.isEmpty()) {
+            throw new RuntimeException("Use at least one variable such as p or q");
+        }
+
+        int rows = 1 << variables.size();
+        String header = buildHeader(variables, expr);
+        System.out.println(header);
+        System.out.println(repeat("-", header.length()));
+
+        for (int mask = 0; mask < rows; mask++) {
+            Map<String, Boolean> assignment = buildAssignment(variables, mask);
+            boolean result = evaluate(tokens, assignment);
+            System.out.println(buildRow(variables, assignment, result));
+        }
+    }
+
+    public static boolean evaluate(List<String> tokens, Map<String, Boolean> valuesByVariable) {
         Stack<Boolean> values = new Stack<Boolean>();
         Stack<String> ops = new Stack<String>();
 
-        for (int i = 0; i < tokens.size(); i++) {
-            String token = tokens.get(i);
-
-            if (token.equals("true")) {
-                values.push(true);
-            } else if (token.equals("false")) {
-                values.push(false);
+        for (String token : tokens) {
+            if (isBooleanLiteral(token)) {
+                values.push(Boolean.parseBoolean(token));
+            } else if (isVariable(token)) {
+                if (!valuesByVariable.containsKey(token)) {
+                    throw new RuntimeException("Missing value for variable: " + token);
+                }
+                values.push(valuesByVariable.get(token));
             } else if (token.equals("(")) {
                 ops.push(token);
             } else if (token.equals(")")) {
@@ -139,12 +167,78 @@ public class LogicCalculator {
         String[] parts = expr.trim().split("\\s+");
         List<String> tokens = new ArrayList<String>();
 
-        for (int i = 0; i < parts.length; i++) {
-            if (!parts[i].isEmpty()) {
-                tokens.add(parts[i]);
+        for (String part : parts) {
+            if (!part.isEmpty()) {
+                tokens.add(part);
             }
         }
 
         return tokens;
+    }
+
+    public static List<String> extractVariables(List<String> tokens) {
+        Set<String> variableSet = new LinkedHashSet<String>();
+
+        for (String token : tokens) {
+            if (isVariable(token)) {
+                variableSet.add(token);
+            }
+        }
+
+        List<String> variables = new ArrayList<String>(variableSet);
+        Collections.sort(variables);
+        return variables;
+    }
+
+    public static boolean isVariable(String token) {
+        return token.matches("[a-z]+") && !isOperator(token) && !isBooleanLiteral(token);
+    }
+
+    public static boolean isBooleanLiteral(String token) {
+        return token.equals("true") || token.equals("false");
+    }
+
+    public static Map<String, Boolean> buildAssignment(List<String> variables, int mask) {
+        Map<String, Boolean> assignment = new TreeMap<String, Boolean>();
+        int variableCount = variables.size();
+
+        for (int i = 0; i < variableCount; i++) {
+            boolean value = ((mask >> (variableCount - i - 1)) & 1) == 1;
+            assignment.put(variables.get(i), value);
+        }
+
+        return assignment;
+    }
+
+    public static String buildHeader(List<String> variables, String expression) {
+        StringBuilder header = new StringBuilder();
+
+        for (String variable : variables) {
+            header.append(String.format("%-7s", variable));
+        }
+        header.append("| ").append(expression);
+
+        return header.toString();
+    }
+
+    public static String buildRow(List<String> variables, Map<String, Boolean> assignment, boolean result) {
+        StringBuilder row = new StringBuilder();
+
+        for (String variable : variables) {
+            row.append(String.format("%-7s", assignment.get(variable) ? "T" : "F"));
+        }
+        row.append("| ").append(result ? "T" : "F");
+
+        return row.toString();
+    }
+
+    public static String repeat(String text, int count) {
+        StringBuilder result = new StringBuilder();
+
+        for (int i = 0; i < count; i++) {
+            result.append(text);
+        }
+
+        return result.toString();
     }
 }
